@@ -19,6 +19,7 @@ void handle_sigwinch(int sig){
 int colorCycle(int *color, float frame);
 void intTo7Seg(int num);
 int constructGameBoard(int *gameMap, int gameMapLen);
+void findNeighbor(int *gameMap, int gameMapLen, int index, int *neighbors);
 
 int main(){
   const char *CURSOR_CLEAR = "\033[0k";
@@ -126,17 +127,16 @@ void intTo7Seg(int num){
 int constructGameBoard(int *gameMap, int gameMapLen){
   printf("constructGameBoard");
   int NumRequestedMines = 10;
-  int NumPlacedMines = 0;
   int *MinePositions = malloc(NumRequestedMines * sizeof(int));
   if(*MinePositions == -1){//malloc safety check
     return -1;
   }
-  for(int i = 0; i < 10; i++){//set all MinePositions to -1
+  for(int i = 0; i < NumRequestedMines; i++){//set all MinePositions to -1
     MinePositions[i] = -1;
   }
-  for(int i = 0; i < 10;){//sets the positions of the mines and check for duplicates
+  for(int i = 0; i < NumRequestedMines;){//sets the positions of the mines and check for duplicates
     int newMinePosition = rand() % gameMapLen;
-    for(int j = 0; j < 10; j++){//checks all MinePositions and breaks on match or end of set positions
+    for(int j = 0; j < NumRequestedMines; j++){//checks all MinePositions and breaks on match or end of set positions
       if(MinePositions[j] == -1){
         MinePositions[i] = newMinePosition;
         i++;
@@ -150,30 +150,79 @@ int constructGameBoard(int *gameMap, int gameMapLen){
   for(int i = 0; i < NumRequestedMines; i++){
     printf("%d ", MinePositions[i]);
   }
-  for(int i = 0; i < gameMapLen - 1; i++){
-    //set each cell
+  int *neighbors = malloc(8 * sizeof(int));
+  if(*neighbors == -1){
+    return -1;
+  }
+  memset(neighbors, 0xFF, 8 * sizeof(int));
+  for(int i = 0; i < NumRequestedMines; i++){//set the mine ajacent cell's numbers
+    findNeighbor(gameMap, gameMapLen, MinePositions[i], neighbors);
   }
   return 0;
 }
-//  for (int i = 0; i < 10000; i++){
-//    usleep(10000);
-//    printf("%s", CURSOR_START);
-//    int cc = colorCycle(color, (float)i);
-//
-//    int xPos = rand() % 20,yPos = rand() % 20;//make a random xy cordinate
-//    printf("\033[%i;%iH", xPos, yPos);//place cursor
-//    printf("\33[38;2;%d;%d;%dm\U0001FBF8", color[0], color[1], color[2]);
-//
-//    printf("\033[%i;%iH", 20, 0);//place cursor
-//    printf("\33[38;2;%d;%d;%dm⚑  \n", color[0], color[1], color[2]);
-//    printf("%3i, %3i, %3i frame:%i",color[0], color[1], color[2], i);
-//
-//    fflush(stdout);
-//  }
-//  printf("\033[?25h");//show cursor
-//  printf("%s \n", RESET);
-//  while (true){
-//    printf("%s", CURSOR_START);
-//
-//  }
 
+void findNeighbor(int *gameMap, int gameMapLen, int index, int *neighbors){
+  int boardWidth = sqrt(gameMapLen);
+  if(index < boardWidth){//top row
+    if(index == 0){//sort for top left corner
+      neighbors[0] = 1;
+      neighbors[1] = boardWidth + 1;
+      neighbors[2] = boardWidth;
+    }
+    if(index == boardWidth - 1){//sort for top right corner
+      neighbors[0] = boardWidth - 2;
+      neighbors[1] = boardWidth + boardWidth - 2;
+      neighbors[2] = boardWidth + boardWidth - 1;
+    }
+    else{//sort for top row excluding corners
+      neighbors[0] = index + 1;
+      neighbors[1] = index + boardWidth + 1;
+      neighbors[2] = index + boardWidth;
+      neighbors[3] = index + boardWidth - 1;
+      neighbors[4] = index - 1;
+    }
+  }
+  if(index >= gameMapLen - boardWidth){// bottom row
+    if(index == gameMapLen - boardWidth){//sort for bottom left corner
+      neighbors[0] = index - boardWidth;
+      neighbors[1] = index - boardWidth + 1;
+      neighbors[2] = index + 1;
+    }
+    if(index == gameMapLen - 1){// sort for bottom right corner
+      neighbors[0] = index - boardWidth - 1;
+      neighbors[1] = index - boardWidth;
+      neighbors[2] = index - 1;
+    }
+    else{//sort for bottom row excluding corners
+      neighbors[0] = index - boardWidth - 1;
+      neighbors[1] = index - boardWidth;
+      neighbors[2] = index - boardWidth + 1;
+      neighbors[3] = index + 1;
+      neighbors[4] = index - 1;
+    }
+  }
+  if(index % boardWidth < 1){// sort for left side excluding corners
+    neighbors[0] = index - boardWidth;
+    neighbors[1] = index - boardWidth + 1;
+    neighbors[2] = index + 1;
+    neighbors[3] = index + boardWidth + 1;
+    neighbors[4] = index + boardWidth;
+  }
+  if(index % boardWidth == boardWidth - 1){//sort for right side excluding corners
+    neighbors[0] = index - boardWidth - 1;
+    neighbors[1] = index - boardWidth;
+    neighbors[4] = index + boardWidth;
+    neighbors[3] = index + boardWidth - 1;
+    neighbors[2] = index - 1;
+ }
+  else{//all the middle ones
+    neighbors[0] = index - boardWidth - 1;
+    neighbors[1] = index - boardWidth;
+    neighbors[2] = index - boardWidth + 1;
+    neighbors[3] = index + 1;
+    neighbors[4] = index + boardWidth + 1;
+    neighbors[5] = index + boardWidth;
+    neighbors[6] = index + boardWidth - 1;
+    neighbors[7] = index - 1;
+  }
+}
