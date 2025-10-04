@@ -18,28 +18,29 @@ void handle_sigwinch(int sig){
 //Function stubs
 int colorCycle(int *color, float frame);
 void intTo7Seg(int num);
-int constructGameBoard(int *gameMap, int gameMapLen);
-void findNeighbor(int *gameMap, int gameMapLen, int index, int *neighbors);
+int constructGameBoard(int gameMap[], int gameMapLen);
+void findNeighbor(int gameMap[], int gameMapLen, int *index, int *neighbors);
 
-int main(){
+int main(){/*
   const char *CURSOR_CLEAR = "\033[0k";
   const char *CURSOR_START = "\033[2J\033[H";
   const char *RESET = "\033[0m";
   int cursorOffset[2] = {0,0};
-  int color[] = {0,0,0};
-  printf("\033[?25l");//hides cursor
-  printf("\033[?25h");//show cursor
-  struct winsize windowSize;//struct to hold queried window windowSize
-  if(ioctl(STDOUT_FILENO, TIOCGWINSZ, &windowSize) == -1){
+  int color[] = {0,0,0};*/
+  //printf("\033[?25l");//hides cursor
+  //printf("\033[?25h");//show cursor
+  //struct winsize windowSize;//struct to hold queried window windowSize
+/*  int ioctlStatus = ioctl(STDOUT_FILENO, TIOCGWINSZ, &windowSize);
+  if( ioctlStatus == -1){
     perror("ioctl TIOCGWINSZ failed");
     return -1;
   }
-  printf("\U0001FBF9\U0001FBF9\U0001FBF9");
 
-  printf("columns: %d\n", windowSize.ws_col);
+//  printf("columns: %d\n", windowSize.ws_col);
   if(windowSize.ws_col >= windowSize.ws_row){
     //setoffset
   }
+*/
 /*
   bool gameRunning = 1;
   while(gameRunning){
@@ -51,12 +52,12 @@ int main(){
       printf("%d", windowSize.ws_col);
     }
   }*/
-  int testnum = 284;
-  intTo7Seg(testnum);
+//  int testnum = 284;
+//  intTo7Seg(testnum);
 //  printf("\033[9999;9999H");
 
   int mapSize = 81;
-  int gameMap[81];
+  int gameMap[81] = {0};
   int gameBoardStatus = constructGameBoard(gameMap,81);
   return 0;
 }
@@ -124,13 +125,9 @@ void intTo7Seg(int num){
   printf("%s\n",charBuff);
 }
 
-int constructGameBoard(int *gameMap, int gameMapLen){
-  printf("constructGameBoard");
+int constructGameBoard(int gameMap[], int gameMapLen){
   int NumRequestedMines = 10;
-  int *MinePositions = malloc(NumRequestedMines * sizeof(int));
-  if(*MinePositions == -1){//malloc safety check
-    return -1;
-  }
+  int MinePositions[NumRequestedMines];
   for(int i = 0; i < NumRequestedMines; i++){//set all MinePositions to -1
     MinePositions[i] = -1;
   }
@@ -147,82 +144,89 @@ int constructGameBoard(int *gameMap, int gameMapLen){
       }
     }
   }
-  for(int i = 0; i < NumRequestedMines; i++){
-    printf("%d ", MinePositions[i]);
-  }
-  int *neighbors = malloc(8 * sizeof(int));
-  if(*neighbors == -1){
-    return -1;
-  }
+  int neighbors[8];
   memset(neighbors, 0xFF, 8 * sizeof(int));
   for(int i = 0; i < NumRequestedMines; i++){//set the mine ajacent cell's numbers
-    findNeighbor(gameMap, gameMapLen, MinePositions[i], neighbors);
+    findNeighbor(gameMap, gameMapLen, &MinePositions[i], neighbors);
+    for(int j = 0; j < 8; j++){
+      if(neighbors[j] > -1){
+        gameMap[neighbors[j]]++;
+      }
+    }
   }
+  for(int i = 0; i < 9; i++){
+    for(int j = 0; j < 9; j++){
+      printf("%d", gameMap[i * 9 + j]);
+    }
+    printf("\n");
+  };
   return 0;
 }
 
-void findNeighbor(int *gameMap, int gameMapLen, int index, int *neighbors){
+void findNeighbor(int gameMap[], int gameMapLen, int *index, int *neighbors){
   int boardWidth = sqrt(gameMapLen);
-  if(index < boardWidth){//top row
-    if(index == 0){//sort for top left corner
+  if(*index < boardWidth){//top row
+    if(*index == 0){//sort for top left corner
       neighbors[0] = 1;
       neighbors[1] = boardWidth + 1;
       neighbors[2] = boardWidth;
     }
-    if(index == boardWidth - 1){//sort for top right corner
+    if(*index == boardWidth - 1){//sort for top right corner
       neighbors[0] = boardWidth - 2;
       neighbors[1] = boardWidth + boardWidth - 2;
       neighbors[2] = boardWidth + boardWidth - 1;
     }
     else{//sort for top row excluding corners
-      neighbors[0] = index + 1;
-      neighbors[1] = index + boardWidth + 1;
-      neighbors[2] = index + boardWidth;
-      neighbors[3] = index + boardWidth - 1;
-      neighbors[4] = index - 1;
+      neighbors[0] = *index + 1;
+      neighbors[1] = *index + boardWidth + 1;
+      neighbors[2] = *index + boardWidth;
+      neighbors[3] = *index + boardWidth - 1;
+      neighbors[4] = *index - 1;
     }
   }
-  if(index >= gameMapLen - boardWidth){// bottom row
-    if(index == gameMapLen - boardWidth){//sort for bottom left corner
-      neighbors[0] = index - boardWidth;
-      neighbors[1] = index - boardWidth + 1;
-      neighbors[2] = index + 1;
+  if(*index >= gameMapLen - boardWidth){// bottom row
+    if(*index == gameMapLen - boardWidth){//sort for bottom left corner
+      neighbors[0] = *index - boardWidth;
+      neighbors[1] = *index - boardWidth + 1;
+      neighbors[2] = *index + 1;
     }
-    if(index == gameMapLen - 1){// sort for bottom right corner
-      neighbors[0] = index - boardWidth - 1;
-      neighbors[1] = index - boardWidth;
-      neighbors[2] = index - 1;
+    if(*index == gameMapLen - 1){// sort for bottom right corner
+      neighbors[0] = *index - boardWidth - 1;
+      neighbors[1] = *index - boardWidth;
+      neighbors[2] = *index - 1;
     }
     else{//sort for bottom row excluding corners
-      neighbors[0] = index - boardWidth - 1;
-      neighbors[1] = index - boardWidth;
-      neighbors[2] = index - boardWidth + 1;
-      neighbors[3] = index + 1;
-      neighbors[4] = index - 1;
+      neighbors[0] = *index - boardWidth - 2;
+      neighbors[1] = *index - boardWidth - 1;
+      neighbors[2] = *index - boardWidth;
+      neighbors[3] = *index + 1;
+      neighbors[4] = *index - 1;
     }
   }
-  if(index % boardWidth < 1){// sort for left side excluding corners
-    neighbors[0] = index - boardWidth;
-    neighbors[1] = index - boardWidth + 1;
-    neighbors[2] = index + 1;
-    neighbors[3] = index + boardWidth + 1;
-    neighbors[4] = index + boardWidth;
+  else{
+    if(*index % boardWidth < 1){// sort for left side excluding corners
+      neighbors[0] = *index - boardWidth;
+      neighbors[1] = *index - boardWidth + 1;
+      neighbors[2] = *index + 1;
+      neighbors[3] = *index + boardWidth + 1;
+      neighbors[4] = *index + boardWidth;
+    }
+    if(*index % boardWidth == boardWidth - 1){//sort for right side excluding corners
+      neighbors[0] = *index - boardWidth - 1;
+      neighbors[1] = *index - boardWidth;
+      neighbors[4] = *index + boardWidth;
+      neighbors[3] = *index + boardWidth - 1;
+      neighbors[2] = *index - 1;
   }
-  if(index % boardWidth == boardWidth - 1){//sort for right side excluding corners
-    neighbors[0] = index - boardWidth - 1;
-    neighbors[1] = index - boardWidth;
-    neighbors[4] = index + boardWidth;
-    neighbors[3] = index + boardWidth - 1;
-    neighbors[2] = index - 1;
- }
-  else{//all the middle ones
-    neighbors[0] = index - boardWidth - 1;
-    neighbors[1] = index - boardWidth;
-    neighbors[2] = index - boardWidth + 1;
-    neighbors[3] = index + 1;
-    neighbors[4] = index + boardWidth + 1;
-    neighbors[5] = index + boardWidth;
-    neighbors[6] = index + boardWidth - 1;
-    neighbors[7] = index - 1;
+    else{//all the middle ones
+      neighbors[0] = *index - boardWidth - 1;
+      neighbors[1] = *index - boardWidth;
+      neighbors[2] = *index - boardWidth + 1;
+      neighbors[3] = *index + 1;
+      neighbors[4] = *index + boardWidth + 1;
+      neighbors[5] = *index + boardWidth;
+      neighbors[6] = *index + boardWidth - 1;
+      neighbors[7] = *index - 1;
+    }
   }
 }
