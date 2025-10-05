@@ -8,18 +8,25 @@
 #include <signal.h>
 #include <errno.h>
 #include <stdbool.h>
+#include <termios.h>
+#include <poll.h>
 
 //signal handling
 volatile sig_atomic_t windowResized = 0;
 void handle_sigwinch(int sig){
   windowResized = 1;
 }
-
+struct termios defaultTerm;
+void resetTerm(int sig){
+  int termResetStatus = tcsetattr(STDIN_FILENO, TCSANOW, &defaultTerm);
+  _exit(1);
+}
 //Function stubs
 int colorCycle(int *color, float frame);
 void intTo7Seg(int num);
 int constructGameBoard(int gameMap[], int gameMapLen);
 void findNeighbor(int gameMap[], int gameMapLen, int *index, int *neighbors);
+void handleInput(struct pollfd *fdToPoll);
 
 int main(){/*
   const char *CURSOR_CLEAR = "\033[0k";
@@ -41,24 +48,26 @@ int main(){/*
     //setoffset
   }
 */
-/*
-  bool gameRunning = 1;
-  while(gameRunning){
-    if(windowResized){
-      if(ioctl(STDOUT_FILENO, TIOCGWINSZ, &windowSize) == -1){
-        perror("ioctl TIOCGWINSZ failed");
-        break;
-      }
-      printf("%d", windowSize.ws_col);
-    }
-  }*/
-//  int testnum = 284;
-//  intTo7Seg(testnum);
-//  printf("\033[9999;9999H");
+  signal(SIGINT, resetTerm);
+  signal(SIGSEGV, resetTerm);
 
+  int getDefaultAttributes = tcgetattr(STDIN_FILENO, &defaultTerm);
+  struct termios newTermSettings = defaultTerm;
+  newTermSettings.c_lflag &= ~(ICANON | ECHO);
+  int setNewAttributes = tcsetattr(STDIN_FILENO, TCSANOW, &newTermSettings);
+  struct pollfd fdToPoll;
+  fdToPoll.fd = STDIN_FILENO;
+  fdToPoll.events = POLLIN;
   int mapSize = 81;
   int gameMap[81] = {0};
   int gameBoardStatus = constructGameBoard(gameMap,81);
+
+  bool gameRunning = 1;
+  while(gameRunning){
+    if(poll(&fdToPoll, 1, 0) > 0){
+      handleInput(&fdToPoll);
+    }
+  }
   return 0;
 }
 
@@ -227,6 +236,43 @@ void findNeighbor(int gameMap[], int gameMapLen, int *index, int *neighbors){
       neighbors[5] = *index + boardWidth;
       neighbors[6] = *index + boardWidth - 1;
       neighbors[7] = *index - 1;
+    }
+  }
+}
+void handleInput(struct pollfd *fdToPoll){
+  //read from STDIN
+  if(fdToPoll->revents == POLLIN){//there is data to read
+    int dataAvalible = 1;
+    int data;
+    while(dataAvalible){
+      data = getchar();
+      int pollStatus = poll(fdToPoll, 1, 0);
+      if(fdToPoll->revents != POLLIN){
+        dataAvalible = 0;
+      }
+    }
+    switch(data){
+      case 'h':
+        printf("left\n");
+        break;
+      case 'k':
+        printf("up\n");
+        break;
+      case 'l':
+        printf("right\n");
+        break;
+      case 'j':
+        printf("down\n");
+        break;
+      case 'e':
+        printf("exit\n");
+        raise(SIGINT);
+        break;
+      case 'f':
+        printf("flag\n");
+        break;
+      default:
+        printf("default\n");
     }
   }
 }
