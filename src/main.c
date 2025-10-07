@@ -26,7 +26,7 @@ int colorCycle(int *color, float frame);
 void intTo7Seg(int num);
 int constructGameBoard(int gameMap[], int gameMapLen);
 void findNeighbor(int gameMap[], int gameMapLen, int *index, int *neighbors);
-void handleInput(struct pollfd *fdToPoll);
+void handleInput(struct pollfd *fdToPoll, int cursorPosition[]);
 
 int main(){/*
   const char *CURSOR_CLEAR = "\033[0k";
@@ -58,14 +58,28 @@ int main(){/*
   struct pollfd fdToPoll;
   fdToPoll.fd = STDIN_FILENO;
   fdToPoll.events = POLLIN;
+
+/*  char positionBuff[16];
+  printf("\033[2J");
+  fflush(NULL);
+  for(int i = 0; i < 20; i++){
+    for(int j = 0; j < 20; j++){
+      usleep(20000);
+      if(write(STDOUT_FILENO, positionBuff, snprintf(positionBuff, 16, "\033[%d;%dH", i, j)) == -1){
+        printf("error");
+      }
+    }
+  }*/
+
   int mapSize = 81;
   int gameMap[81] = {0};
   int gameBoardStatus = constructGameBoard(gameMap,81);
+  int cursorPosition[2] = {0,0};
 
   bool gameRunning = 1;
   while(gameRunning){
     if(poll(&fdToPoll, 1, 0) > 0){
-      handleInput(&fdToPoll);
+      handleInput(&fdToPoll, cursorPosition);
     }
   }
   return 0;
@@ -239,7 +253,7 @@ void findNeighbor(int gameMap[], int gameMapLen, int *index, int *neighbors){
     }
   }
 }
-void handleInput(struct pollfd *fdToPoll){
+void handleInput(struct pollfd *fdToPoll, int cursorPosition[]){
   //read from STDIN
   if(fdToPoll->revents == POLLIN){//there is data to read
     int dataAvalible = 1;
@@ -251,18 +265,35 @@ void handleInput(struct pollfd *fdToPoll){
         dataAvalible = 0;
       }
     }
+    char commandedPosition[16];
     switch(data){
       case 'h':
-        printf("left\n");
+        if(cursorPosition[1]>0){cursorPosition[1]--;}
+        if(write(STDOUT_FILENO,commandedPosition, snprintf(commandedPosition, 16, "\033[%dG", cursorPosition[1])) == -1){
+          printf("Error,handleInput");
+        }
+        printf("%d,%d", cursorPosition[0], cursorPosition[1]);
         break;
       case 'k':
-        printf("up\n");
+        if(cursorPosition[0]>0){cursorPosition[0]--;}
+        if(write(STDOUT_FILENO,commandedPosition, snprintf(commandedPosition, 16, "\033[%d;%dH",cursorPosition[0], cursorPosition[1])) == -1){
+          printf("Error,handleInput");
+        }
+        printf(" %d,%d ", cursorPosition[0], cursorPosition[1]);
         break;
       case 'l':
-        printf("right\n");
+        if(cursorPosition[1]<20){cursorPosition[1]++;}
+        if(write(STDOUT_FILENO,commandedPosition, snprintf(commandedPosition, 16, "\033[%dG", cursorPosition[1])) == -1){
+          printf("Error,handleInput");
+        }
+        printf("%d,%d", cursorPosition[0], cursorPosition[1]);
         break;
       case 'j':
-        printf("down\n");
+        if(cursorPosition[0]<20){cursorPosition[0]++;}
+        if(write(STDOUT_FILENO,commandedPosition, snprintf(commandedPosition, 16, "\033[%d;%dH",cursorPosition[0], cursorPosition[1])) == -1){
+          printf("Error,handleInput");
+        }
+        printf("%d,%d", cursorPosition[0], cursorPosition[1]);
         break;
       case 'e':
         printf("exit\n");
