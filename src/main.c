@@ -10,6 +10,7 @@
 #include <stdbool.h>
 #include <termios.h>
 #include <poll.h>
+#include <time.h>
 
 //signal handling
 volatile sig_atomic_t windowResized = 0;
@@ -26,28 +27,10 @@ int colorCycle(int *color, float frame);
 void intTo7Seg(int num);
 int constructGameBoard(int gameMap[], int gameMapLen);
 void findNeighbor(int gameMap[], int gameMapLen, int *index, int *neighbors);
-void handleInput(struct pollfd *fdToPoll, int cursorPosition[]);
+char handleInput(struct pollfd *fdToPoll, int cursorPosition[]);
+void drawGame(int gameMap[], int mapSize, int sevenSegTimerTime, int flagCounter, int cursorPosition[], char instruction);
 
-int main(){/*
-  const char *CURSOR_CLEAR = "\033[0k";
-  const char *CURSOR_START = "\033[2J\033[H";
-  const char *RESET = "\033[0m";
-  int cursorOffset[2] = {0,0};
-  int color[] = {0,0,0};*/
-  //printf("\033[?25l");//hides cursor
-  //printf("\033[?25h");//show cursor
-  //struct winsize windowSize;//struct to hold queried window windowSize
-/*  int ioctlStatus = ioctl(STDOUT_FILENO, TIOCGWINSZ, &windowSize);
-  if( ioctlStatus == -1){
-    perror("ioctl TIOCGWINSZ failed");
-    return -1;
-  }
-
-//  printf("columns: %d\n", windowSize.ws_col);
-  if(windowSize.ws_col >= windowSize.ws_row){
-    //setoffset
-  }
-*/
+int main(){
   signal(SIGINT, resetTerm);
   signal(SIGSEGV, resetTerm);
 
@@ -74,12 +57,38 @@ int main(){/*
   int mapSize = 81;
   int gameMap[81] = {0};
   int gameBoardStatus = constructGameBoard(gameMap,81);
-  int cursorPosition[2] = {0,0};
-
+  int cursorPosition[2] = {1,1};
+  int sevenSegTimerTime = 0;
+  int flagCounter = 10;
+  time_t startTime;
+  time(&startTime);
+  time_t lastUpdateTime;
+  time(&lastUpdateTime);
+/*
+  intTo7Seg(-1);
+  intTo7Seg(-10);
+  intTo7Seg(-98);
+  intTo7Seg(1);
+  intTo7Seg(10);
+  intTo7Seg(100);*/
   bool gameRunning = 1;
   while(gameRunning){
+    int drawFlag = 0;
+    time_t currentTime;
+    time(&currentTime);
+    sevenSegTimerTime = -1;
+    if(currentTime - lastUpdateTime != 0){
+      lastUpdateTime = currentTime;
+      sevenSegTimerTime = currentTime - startTime;
+      drawFlag = 1;
+    }
+    char input = 'n';
     if(poll(&fdToPoll, 1, 0) > 0){
       handleInput(&fdToPoll, cursorPosition);
+      drawFlag = 1;
+    }
+    if(drawFlag){
+      drawGame(gameMap, mapSize, sevenSegTimerTime, flagCounter, cursorPosition, input);
     }
   }
   return 0;
@@ -105,13 +114,13 @@ void intTo7Seg(int num){
   }
   char numString[6];
   char charBuff[13] = {"\U0001FBF0\U0001FBF0\U0001FBF0"};
-  sprintf(numString,"%d", num);
-  for(int i = 3; i > 0; i--){
+  int n = sprintf(numString,"%d", num);
+  for(int i = 0; i < n; i++){
     memmove(charBuff + 4, charBuff, 8);//pushes the first 2 characters toward the end of the array
 
-    switch(numString[i - 1]){//populates the zeroth index of the array with the apropriate unicode character
+    switch(numString[i]){//populates the zeroth index of the array with the apropriate unicode character
       case '-':
-        strncpy(charBuff, "\U0001FB0B", 4);
+        strncpy(charBuff, "\U0001FB07)", 4);
         break;
       case '0':
         strncpy(charBuff, "\U0001FBF0", 4);
@@ -145,11 +154,16 @@ void intTo7Seg(int num){
         break;
     }
   }
-  printf("%s\n",charBuff);
+  
+  char tempBuff[4];
+  strncpy(tempBuff, charBuff + 8, 4);
+  memmove(charBuff + 8, charBuff, 4);
+  strncpy(charBuff, tempBuff, 4);
+  printf("%s",charBuff);
+  fflush(NULL);
 }
 
-int constructGameBoard(int gameMap[], int gameMapLen){
-  int NumRequestedMines = 10;
+int constructGameBoard(int gameMap[], int gameMapLen){ int NumRequestedMines = 10;
   int MinePositions[NumRequestedMines];
   for(int i = 0; i < NumRequestedMines; i++){//set all MinePositions to -1
     MinePositions[i] = -1;
@@ -177,12 +191,13 @@ int constructGameBoard(int gameMap[], int gameMapLen){
       }
     }
   }
+  /*
   for(int i = 0; i < 9; i++){
     for(int j = 0; j < 9; j++){
       printf("%d", gameMap[i * 9 + j]);
     }
     printf("\n");
-  };
+  };*/
   return 0;
 }
 
@@ -253,7 +268,7 @@ void findNeighbor(int gameMap[], int gameMapLen, int *index, int *neighbors){
     }
   }
 }
-void handleInput(struct pollfd *fdToPoll, int cursorPosition[]){
+char handleInput(struct pollfd *fdToPoll, int cursorPosition[]){
   //read from STDIN
   if(fdToPoll->revents == POLLIN){//there is data to read
     int dataAvalible = 1;
@@ -268,42 +283,68 @@ void handleInput(struct pollfd *fdToPoll, int cursorPosition[]){
     char commandedPosition[16];
     switch(data){
       case 'h':
-        if(cursorPosition[1]>0){cursorPosition[1]--;}
+        if(cursorPosition[1]>1){cursorPosition[1]--;}
         if(write(STDOUT_FILENO,commandedPosition, snprintf(commandedPosition, 16, "\033[%dG", cursorPosition[1])) == -1){
           printf("Error,handleInput");
         }
-        printf("%d,%d", cursorPosition[0], cursorPosition[1]);
+        return 'n';
         break;
       case 'k':
-        if(cursorPosition[0]>0){cursorPosition[0]--;}
+        if(cursorPosition[0]>1){cursorPosition[0]--;}
         if(write(STDOUT_FILENO,commandedPosition, snprintf(commandedPosition, 16, "\033[%d;%dH",cursorPosition[0], cursorPosition[1])) == -1){
           printf("Error,handleInput");
         }
-        printf(" %d,%d ", cursorPosition[0], cursorPosition[1]);
+        return 'n';
         break;
       case 'l':
         if(cursorPosition[1]<20){cursorPosition[1]++;}
         if(write(STDOUT_FILENO,commandedPosition, snprintf(commandedPosition, 16, "\033[%dG", cursorPosition[1])) == -1){
           printf("Error,handleInput");
         }
-        printf("%d,%d", cursorPosition[0], cursorPosition[1]);
+        return 'n';
         break;
       case 'j':
         if(cursorPosition[0]<20){cursorPosition[0]++;}
         if(write(STDOUT_FILENO,commandedPosition, snprintf(commandedPosition, 16, "\033[%d;%dH",cursorPosition[0], cursorPosition[1])) == -1){
           printf("Error,handleInput");
         }
-        printf("%d,%d", cursorPosition[0], cursorPosition[1]);
+        return 'n';
         break;
       case 'e':
         printf("exit\n");
         raise(SIGINT);
         break;
       case 'f':
-        printf("flag\n");
+        return 'f';
         break;
       default:
-        printf("default\n");
+        return 'n';
     }
+  }
+}
+
+void drawGame(int gameMap[], int mapSize, int sevenSegTimerTime, int flagCounter, int cursorPosition[], char instruction){
+  printf("\033[?25l");
+  printf("\033[1;1H🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹");
+  printf("\033[2;1H█");
+  intTo7Seg(flagCounter);
+  printf("\033[2;5H▐:)█");
+  //printf("\033[3;1H");
+
+  intTo7Seg(sevenSegTimerTime);
+  printf("\033[2;12H▐█");
+  printf("\033[3;1H█████████████");
+  fflush(NULL);
+  char commandedPosition[16];//reset cursor position
+  if(write(STDOUT_FILENO,commandedPosition, snprintf(commandedPosition, 16, "\033[%d;%dH",cursorPosition[0], cursorPosition[1])) == -1){
+    printf("Error,handleInput");
+  }
+  printf("\033[?25h");//unhide Cursor
+
+  if(instruction == 'n'){
+    return;
+  }
+  if(instruction == 'f'){
+    printf("flag");
   }
 }
