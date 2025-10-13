@@ -28,7 +28,9 @@ void intTo7Seg(int num);
 int constructGameBoard(int gameMap[], int gameMapLen);
 void findNeighbor(int gameMap[], int gameMapLen, int *index, int *neighbors);
 char handleInput(struct pollfd *fdToPoll, int cursorPosition[]);
-void drawGame(int gameMap[], int mapSize, int sevenSegTimerTime, int flagCounter, int cursorPosition[], char instruction);
+void drawGame(int gameMap[], int mapSize, int sevenSegTimerTime, int *flagCounter, int cursorPosition[], char instruction, bool *gameRunning);
+void getLocalPosition(int cursorPosition[], int *localPosition);//gets the position of cursor in game map
+void gameOver(int gameMap[], bool *gameRunning);
 
 int main(){
   signal(SIGINT, resetTerm);
@@ -57,20 +59,14 @@ int main(){
   int mapSize = 81;
   int gameMap[81] = {0};
   int gameBoardStatus = constructGameBoard(gameMap,81);
-  int cursorPosition[2] = {1,1};
+  int cursorPosition[2] = {4,3};
   int sevenSegTimerTime = 0;
   int flagCounter = 10;
   time_t startTime;
   time(&startTime);
   time_t lastUpdateTime;
   time(&lastUpdateTime);
-/*
-  intTo7Seg(-1);
-  intTo7Seg(-10);
-  intTo7Seg(-98);
-  intTo7Seg(1);
-  intTo7Seg(10);
-  intTo7Seg(100);*/
+  printf("\033[2J");//clear the screen
   bool gameRunning = 1;
   while(gameRunning){
     int drawFlag = 0;
@@ -84,12 +80,19 @@ int main(){
     }
     char input = 'n';
     if(poll(&fdToPoll, 1, 0) > 0){
-      handleInput(&fdToPoll, cursorPosition);
+      input = handleInput(&fdToPoll, cursorPosition);
       drawFlag = 1;
     }
     if(drawFlag){
-      drawGame(gameMap, mapSize, sevenSegTimerTime, flagCounter, cursorPosition, input);
+      drawGame(gameMap, mapSize, sevenSegTimerTime, &flagCounter, cursorPosition, input, &gameRunning);
     }
+  }
+  while(true){
+    usleep(50000);
+    char input = 'n';
+    if(poll(&fdToPoll, 1, 0) > 0){
+      input = handleInput(&fdToPoll, cursorPosition);
+    }  
   }
   return 0;
 }
@@ -163,7 +166,8 @@ void intTo7Seg(int num){
   fflush(NULL);
 }
 
-int constructGameBoard(int gameMap[], int gameMapLen){ int NumRequestedMines = 10;
+int constructGameBoard(int gameMap[], int gameMapLen){
+  int NumRequestedMines = 10;
   int MinePositions[NumRequestedMines];
   for(int i = 0; i < NumRequestedMines; i++){//set all MinePositions to -1
     MinePositions[i] = -1;
@@ -190,6 +194,10 @@ int constructGameBoard(int gameMap[], int gameMapLen){ int NumRequestedMines = 1
         gameMap[neighbors[j]]++;
       }
     }
+  }
+  //set all mine positions in gameMap to 9
+  for(int i = 0; i < NumRequestedMines; i++){
+    gameMap[MinePositions[i]] = 9;
   }
   /*
   for(int i = 0; i < 9; i++){
@@ -283,39 +291,53 @@ char handleInput(struct pollfd *fdToPoll, int cursorPosition[]){
     char commandedPosition[16];
     switch(data){
       case 'h':
-        if(cursorPosition[1]>1){cursorPosition[1]--;}
+        if(cursorPosition[1]>3){cursorPosition[1]--;}
         if(write(STDOUT_FILENO,commandedPosition, snprintf(commandedPosition, 16, "\033[%dG", cursorPosition[1])) == -1){
           printf("Error,handleInput");
         }
         return 'n';
         break;
       case 'k':
-        if(cursorPosition[0]>1){cursorPosition[0]--;}
+        if(cursorPosition[0]>2){cursorPosition[0]--;}
         if(write(STDOUT_FILENO,commandedPosition, snprintf(commandedPosition, 16, "\033[%d;%dH",cursorPosition[0], cursorPosition[1])) == -1){
           printf("Error,handleInput");
         }
         return 'n';
         break;
       case 'l':
-        if(cursorPosition[1]<20){cursorPosition[1]++;}
+        if(cursorPosition[1]<11){cursorPosition[1]++;}
         if(write(STDOUT_FILENO,commandedPosition, snprintf(commandedPosition, 16, "\033[%dG", cursorPosition[1])) == -1){
           printf("Error,handleInput");
         }
         return 'n';
         break;
       case 'j':
-        if(cursorPosition[0]<20){cursorPosition[0]++;}
+        if(cursorPosition[0]<12){cursorPosition[0]++;}
         if(write(STDOUT_FILENO,commandedPosition, snprintf(commandedPosition, 16, "\033[%d;%dH",cursorPosition[0], cursorPosition[1])) == -1){
           printf("Error,handleInput");
         }
         return 'n';
         break;
       case 'e':
-        printf("exit\n");
+        printf("\033[2J");//clear the screen
+        printf("\033[1;1H");
+        printf("\033[?25h");//unhide Cursor
+        fflush(NULL);
         raise(SIGINT);
         break;
+      case 'q':
+        printf("\033[2J");//clear the screen
+        printf("\033[1;1H");
+        printf("\033[?25h");//unhide Cursor
+        fflush(NULL);
+        raise(SIGINT);
+        break;
+
       case 'f':
         return 'f';
+        break;
+      case 's':
+        return 's';
         break;
       default:
         return 'n';
@@ -323,28 +345,91 @@ char handleInput(struct pollfd *fdToPoll, int cursorPosition[]){
   }
 }
 
-void drawGame(int gameMap[], int mapSize, int sevenSegTimerTime, int flagCounter, int cursorPosition[], char instruction){
+void drawGame(int gameMap[], int mapSize, int sevenSegTimerTime, int *flagCounter, int cursorPosition[], char instruction, bool *gameRunning){
   printf("\033[?25l");
   printf("\033[1;1H🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹");
   printf("\033[2;1H█");
-  intTo7Seg(flagCounter);
+  intTo7Seg(*flagCounter);
   printf("\033[2;5H▐:)█");
-  //printf("\033[3;1H");
-
-  intTo7Seg(sevenSegTimerTime);
+  if(sevenSegTimerTime != -1){// won't flash -1 when redrawing without timer update
+    intTo7Seg(sevenSegTimerTime);
+  }
   printf("\033[2;12H▐█");
   printf("\033[3;1H█████████████");
+  fflush(NULL);
+  if(instruction == 'f'){
+    int flagIndex;
+    getLocalPosition(cursorPosition, &flagIndex);
+    if(gameMap[flagIndex] < 10 && cursorPosition[0]>3){
+      gameMap[flagIndex] +=10;
+      (*flagCounter)--;
+    }
+    else if(gameMap[flagIndex] > 9 && gameMap[flagIndex] < 19 && cursorPosition[0]>3){
+      gameMap[flagIndex] -=10;
+      (*flagCounter)++;
+    }
+  }
+  if(instruction == 's'){
+    int stepIndex;
+    getLocalPosition(cursorPosition, &stepIndex);
+    if(gameMap[stepIndex] == 9){//we stepped on a mine :(
+      gameOver(gameMap, gameRunning);
+      return;
+    }
+    if(gameMap[stepIndex] > 9 && gameMap[stepIndex] < 19){//we stepped on a flag.
+      return;
+    }
+    if(gameMap[stepIndex] > 19){//we stepped on a already open space
+      return;
+    }
+    if(gameMap[stepIndex] < 9){
+      gameMap[stepIndex] +=20;
+    }
+  }
+  //draw the remaining game board
+  for(int i = 0; i < 9; i++){
+    char lineBuffer[13*4 + 1] = {0};
+    strcat(lineBuffer, "██");
+    for(int j = 0; j < 9; j++) {
+      if(gameMap[i*9 +j] < 10){
+        strcat(lineBuffer, "∎");
+      }
+      if(gameMap[i*9 +j] > 9 && gameMap[i*9 +j] < 20){// uncovered cells should be their value + 20
+        strcat(lineBuffer, "⚑");
+      }
+      if(gameMap[i*9 +j] > 19){
+        char cellValue[4];
+        snprintf(cellValue, 4, "%d", gameMap[i*9 +j]-20);
+        strcat(lineBuffer, cellValue);
+      }
+    }
+    strcat(lineBuffer, "██");
+    printf("\033[%d;1H%s", i+4, lineBuffer);
+    fflush(NULL);
+  }
+  printf("\033[13;1H█████████████");
   fflush(NULL);
   char commandedPosition[16];//reset cursor position
   if(write(STDOUT_FILENO,commandedPosition, snprintf(commandedPosition, 16, "\033[%d;%dH",cursorPosition[0], cursorPosition[1])) == -1){
     printf("Error,handleInput");
   }
   printf("\033[?25h");//unhide Cursor
-
-  if(instruction == 'n'){
-    return;
+  fflush(NULL);
+}
+void getLocalPosition(int cursorPosition[], int *localPosition){//gets the position of cursor in game map
+  int offset[] = {4,3};//given in x,y
+  int localXY[2];
+  localXY[0] = cursorPosition[0] - offset[0];
+  localXY[1] = cursorPosition[1] - offset[1];
+  *localPosition = localXY[0] * 9 + localXY[1] % 9;
+}
+void gameOver(int gameMap[], bool *gameRunning){
+  printf("\033[2;7H/");
+  for(int i = 0; i < 81; i++){
+    if(gameMap[i] == 9 || gameMap[i] == 19){
+      printf("\033[%d;%dH⋇",i/9 + 4, i%9 + 3);
+    }
   }
-  if(instruction == 'f'){
-    printf("flag");
-  }
+  fflush(NULL);
+  *gameRunning = 0;
 }
