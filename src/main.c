@@ -1,4 +1,3 @@
-//⚑■
 #include <stdio.h>
 #include <unistd.h>
 #include <math.h>
@@ -25,12 +24,13 @@ void resetTerm(int sig){
 //Function stubs
 int colorCycle(int *color, float frame);
 void intTo7Seg(int num);
-int constructGameBoard(int gameMap[], int gameMapLen);
+int constructGameBoard(int gameMap[], int gameMapLen, time_t startTime);
 void findNeighbor(int gameMap[], int gameMapLen, int *index, int *neighbors);
 char handleInput(struct pollfd *fdToPoll, int cursorPosition[]);
-void drawGame(int gameMap[], int mapSize, int sevenSegTimerTime, int *flagCounter, int cursorPosition[], char instruction, bool *gameRunning);
+void drawGame(int gameMap[], int gameMapLen, int sevenSegTimerTime, int *flagCounter, int cursorPosition[], char instruction, bool *gameRunning);
 void getLocalPosition(int cursorPosition[], int *localPosition);//gets the position of cursor in game map
 void gameOver(int gameMap[], bool *gameRunning);
+void stepOnNeighbors(int gameMap[], int gameMapLen, int index);
 
 int main(){
   signal(SIGINT, resetTerm);
@@ -44,26 +44,15 @@ int main(){
   fdToPoll.fd = STDIN_FILENO;
   fdToPoll.events = POLLIN;
 
-/*  char positionBuff[16];
-  printf("\033[2J");
-  fflush(NULL);
-  for(int i = 0; i < 20; i++){
-    for(int j = 0; j < 20; j++){
-      usleep(20000);
-      if(write(STDOUT_FILENO, positionBuff, snprintf(positionBuff, 16, "\033[%d;%dH", i, j)) == -1){
-        printf("error");
-      }
-    }
-  }*/
-
-  int mapSize = 81;
+  srand(1);
+  int gameMapLen = 81;
   int gameMap[81] = {0};
-  int gameBoardStatus = constructGameBoard(gameMap,81);
+  time_t startTime;
+  time(&startTime);
+  int gameBoardStatus = constructGameBoard(gameMap, 81, startTime);
   int cursorPosition[2] = {4,3};
   int sevenSegTimerTime = 0;
   int flagCounter = 10;
-  time_t startTime;
-  time(&startTime);
   time_t lastUpdateTime;
   time(&lastUpdateTime);
   printf("\033[2J");//clear the screen
@@ -84,8 +73,9 @@ int main(){
       drawFlag = 1;
     }
     if(drawFlag){
-      drawGame(gameMap, mapSize, sevenSegTimerTime, &flagCounter, cursorPosition, input, &gameRunning);
+      drawGame(gameMap, gameMapLen, sevenSegTimerTime, &flagCounter, cursorPosition, input, &gameRunning);
     }
+    usleep(50000);
   }
   while(true){
     usleep(50000);
@@ -166,7 +156,7 @@ void intTo7Seg(int num){
   fflush(NULL);
 }
 
-int constructGameBoard(int gameMap[], int gameMapLen){
+int constructGameBoard(int gameMap[], int gameMapLen, time_t startTime){
   int NumRequestedMines = 10;
   int MinePositions[NumRequestedMines];
   for(int i = 0; i < NumRequestedMines; i++){//set all MinePositions to -1
@@ -186,8 +176,8 @@ int constructGameBoard(int gameMap[], int gameMapLen){
     }
   }
   int neighbors[8];
-  memset(neighbors, 0xFF, 8 * sizeof(int));
   for(int i = 0; i < NumRequestedMines; i++){//set the mine ajacent cell's numbers
+    memset(neighbors, 0xFF, 8 * sizeof(int));
     findNeighbor(gameMap, gameMapLen, &MinePositions[i], neighbors);
     for(int j = 0; j < 8; j++){
       if(neighbors[j] > -1){
@@ -199,13 +189,6 @@ int constructGameBoard(int gameMap[], int gameMapLen){
   for(int i = 0; i < NumRequestedMines; i++){
     gameMap[MinePositions[i]] = 9;
   }
-  /*
-  for(int i = 0; i < 9; i++){
-    for(int j = 0; j < 9; j++){
-      printf("%d", gameMap[i * 9 + j]);
-    }
-    printf("\n");
-  };*/
   return 0;
 }
 
@@ -217,10 +200,10 @@ void findNeighbor(int gameMap[], int gameMapLen, int *index, int *neighbors){
       neighbors[1] = boardWidth + 1;
       neighbors[2] = boardWidth;
     }
-    if(*index == boardWidth - 1){//sort for top right corner
-      neighbors[0] = boardWidth - 2;
-      neighbors[1] = boardWidth + boardWidth - 2;
-      neighbors[2] = boardWidth + boardWidth - 1;
+    else if(*index == boardWidth - 1){//sort for top right corner
+      neighbors[0] = *index + boardWidth;
+      neighbors[1] = *index + boardWidth - 1;
+      neighbors[2] = *index - 1;
     }
     else{//sort for top row excluding corners
       neighbors[0] = *index + 1;
@@ -230,21 +213,21 @@ void findNeighbor(int gameMap[], int gameMapLen, int *index, int *neighbors){
       neighbors[4] = *index - 1;
     }
   }
-  if(*index >= gameMapLen - boardWidth){// bottom row
+  else if(*index >= gameMapLen - boardWidth){// bottom row
     if(*index == gameMapLen - boardWidth){//sort for bottom left corner
       neighbors[0] = *index - boardWidth;
       neighbors[1] = *index - boardWidth + 1;
       neighbors[2] = *index + 1;
     }
-    if(*index == gameMapLen - 1){// sort for bottom right corner
+    else if(*index == gameMapLen - 1){// sort for bottom right corner
       neighbors[0] = *index - boardWidth - 1;
       neighbors[1] = *index - boardWidth;
       neighbors[2] = *index - 1;
     }
     else{//sort for bottom row excluding corners
-      neighbors[0] = *index - boardWidth - 2;
-      neighbors[1] = *index - boardWidth - 1;
-      neighbors[2] = *index - boardWidth;
+      neighbors[0] = *index - boardWidth - 1;
+      neighbors[1] = *index - boardWidth;
+      neighbors[2] = *index - boardWidth + 1;
       neighbors[3] = *index + 1;
       neighbors[4] = *index - 1;
     }
@@ -257,14 +240,14 @@ void findNeighbor(int gameMap[], int gameMapLen, int *index, int *neighbors){
       neighbors[3] = *index + boardWidth + 1;
       neighbors[4] = *index + boardWidth;
     }
-    if(*index % boardWidth == boardWidth - 1){//sort for right side excluding corners
+    else if(*index % boardWidth == boardWidth - 1){//sort for right side excluding corners
       neighbors[0] = *index - boardWidth - 1;
       neighbors[1] = *index - boardWidth;
       neighbors[4] = *index + boardWidth;
       neighbors[3] = *index + boardWidth - 1;
       neighbors[2] = *index - 1;
   }
-    else{//all the middle ones
+    else{//all the middle ones--
       neighbors[0] = *index - boardWidth - 1;
       neighbors[1] = *index - boardWidth;
       neighbors[2] = *index - boardWidth + 1;
@@ -345,7 +328,7 @@ char handleInput(struct pollfd *fdToPoll, int cursorPosition[]){
   }
 }
 
-void drawGame(int gameMap[], int mapSize, int sevenSegTimerTime, int *flagCounter, int cursorPosition[], char instruction, bool *gameRunning){
+void drawGame(int gameMap[], int gameMapLen, int sevenSegTimerTime, int *flagCounter, int cursorPosition[], char instruction, bool *gameRunning){
   printf("\033[?25l");
   printf("\033[1;1H🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹🬹");
   printf("\033[2;1H█");
@@ -382,8 +365,12 @@ void drawGame(int gameMap[], int mapSize, int sevenSegTimerTime, int *flagCounte
     if(gameMap[stepIndex] > 19){//we stepped on a already open space
       return;
     }
-    if(gameMap[stepIndex] < 9){
+    if(gameMap[stepIndex] < 9 && gameMap[stepIndex] != 0){
       gameMap[stepIndex] +=20;
+    }
+    if(gameMap[stepIndex] == 0){
+      gameMap[stepIndex] = 20;
+      stepOnNeighbors(gameMap, gameMapLen, stepIndex);
     }
   }
   //draw the remaining game board
@@ -432,4 +419,18 @@ void gameOver(int gameMap[], bool *gameRunning){
   }
   fflush(NULL);
   *gameRunning = 0;
+}
+void stepOnNeighbors(int gameMap[], int gameMapLen, int index){// recursive function!! YAYYYY!!
+  gameMap[index] = 20;
+  int neighbors[8];
+  memset(neighbors, 0xFF, 8 * sizeof(int));
+  findNeighbor(gameMap, gameMapLen, &index, neighbors);
+  for(int j = 0; j < 8; j++){
+    if(gameMap[neighbors[j]] == 0 && neighbors[j] != -1){
+      stepOnNeighbors(gameMap, gameMapLen, neighbors[j]);
+    }
+    else if(gameMap[neighbors[j]] != 20 && neighbors[j] != -1 && gameMap[neighbors[j]]<9){
+      gameMap[neighbors[j]] +=20;
+    }
+  }
 }
