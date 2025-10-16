@@ -44,7 +44,7 @@ int main(){
   fdToPoll.fd = STDIN_FILENO;
   fdToPoll.events = POLLIN;
 
-  srand(1);
+  srand(time(NULL));
   int gameMapLen = 81;
   int gameMap[81] = {0};
   time_t startTime;
